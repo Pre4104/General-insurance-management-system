@@ -5,8 +5,8 @@ import random
 # Establish the connection
 connection = mysql.connector.connect(
             host="localhost",
-            user="CS",
-            password="root171861",
+            user="root", #Enter your user name
+            password="YOUR_PASSWORD", #Enter your password 
             database="Insurance_Company"
         )
         
@@ -38,7 +38,7 @@ def party_code(type_of_insurance,year):
             party_code(type_of_insurance,year)
 
 def password_checking():
-    password="root171861"
+    password="Enter your password" #Enter your password
     pwd=input("Enter the password:")
     if pwd==password:
        underwriter()
