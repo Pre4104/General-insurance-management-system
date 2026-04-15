@@ -43,3 +43,76 @@ manual paperwork.
 ---
 
 ## Project Structure
+├── source_code.py       # Main application file
+├── blackbox_SQL_.py     # Database connection and table setup
+├── party_code.py        # Party code generation logic
+├── party_code.txt       # Stores used party codes
+├── Requests.csv         # Stores customer change requests
+
+---
+
+## How to Run
+
+### Prerequisites
+- Python 3.12
+- MySQL Server 8.0
+- `mysql-connector-python` library
+
+### Installation
+
+```bash
+pip install mysql-connector-python
+```
+
+### Database Setup
+
+1. Open MySQL and create the database:
+```sql
+CREATE DATABASE Insurance_Company;
+```
+
+2. Create the `Customer_Details` table:
+```sql
+USE Insurance_Company;
+CREATE TABLE Customer_Details (
+    party_code BIGINT PRIMARY KEY,
+    Name VARCHAR(25) NOT NULL,
+    Phone_no VARCHAR(10) NOT NULL,
+    Address VARCHAR(50),
+    Type_of_Insurance VARCHAR(5),
+    Email VARCHAR(50),
+    Pincode INT,
+    Policy_Start_Date DATE,
+    Policy_End_Date DATE
+);
+```
+
+3. Update the database credentials in `source_code.py`:
+```python
+connection = mysql.connector.connect(
+    host="localhost",
+    user="your_username",
+    password="your_password",
+    database="Insurance_Company"
+)
+```
+
+### Run the Program
+
+```bash
+python source_code.py
+```
+
+---
+
+## Technologies Used
+
+- **Language:** Python 3.12
+- **Database:** MySQL 8.0
+- **Libraries:** `mysql-connector-python`, `datetime`, `csv`, `random` 
+---
+
+## Disclaimer
+
+This project was created for educational purposes. Database credentials in the code should be changed
+before any real-world use.
