@@ -1,12 +1,8 @@
 # General-insurance-management-system
 A Python + MySQL based insurance management system for customers and underwriters
 
-# General Insurance Management System
-
 A database-driven desktop application built with **Python 3.12** and **MySQL 8.0**
-for managing general insurance policies. Developed as a Class XII Computer
-Science (083) Investigatory Project at Kendriya Vidyalaya AFS Yelahanka,
-Bengaluru (2023–24).
+for managing general insurance policies. Developed as a Investigatory
 
 ---
 
