@@ -2,282 +2,358 @@ import mysql.connector
 import datetime
 import csv
 import random
-# Establish the connection
+import hashlib
+
+# ── DATABASE CONNECTION ────────────────────────────────────────────────────────
 connection = mysql.connector.connect(
-            host="localhost",
-            user="root", #Enter your user name
-            password="YOUR_PASSWORD", #Enter your password 
-            database="Insurance_Company"
-        )
-        
+    host="localhost",
+    user="root",           # Enter your username
+    password="YOUR_PASSWORD",  # Enter your password
+    database="Insurance_Company"
+)
 cursor = connection.cursor()
 
-def party_code(type_of_insurance,year):
-    #NP=family floater,TU=Top up,UK=New med claim
-    #SH=Shopkeeper,MI=money insurance,BI=burgalry
-    branch_no="67200"
-    if type_of_insurance in ["TW",'PC','CV']:
-        product_code="31" #motor
-    if type_of_insurance in ['NP','TU','UK']:
-        product_code="34" #health
-    if type_of_insurance in ['FS']:#fire insurance
-        product_code="11"
-    if type_of_insurance in ['SH','MI','BI']:
-        product_code="46" #miscellanous
-    if type_of_insurance in ["PU"]:
-        product_code="42"# personal accident
+# ── CONSTANTS ──────────────────────────────────────────────────────────────────
+INSURANCE_TYPES = {
+    "TW": "31", "PC": "31", "CV": "31",   # Motor
+    "NP": "34", "TU": "34", "UK": "34",   # Health
+    "FS": "11",                             # Fire
+    "SH": "46", "MI": "46", "BI": "46",   # Miscellaneous
+    "PU": "42",                             # Personal Accident
+}
+BRANCH_NO = "67200"
+
+UNDERWRITER_PASSWORD_HASH = hashlib.sha256("Enter your password".encode()).hexdigest()
+
+DB_COLUMNS = [
+    "Party Code", "Name", "Phone No.", "City",
+    "Type of Insurance", "Email", "Pincode",
+    "Policy Start Date", "Policy End Date"
+]
+
+
+# ── PARTY CODE GENERATOR ───────────────────────────────────────────────────────
+def generate_party_code(type_of_insurance, year):
+
+    if type_of_insurance not in INSURANCE_TYPES:
+        print("Invalid insurance type.")
+        return None
+
+    product_code = INSURANCE_TYPES[type_of_insurance]
     random_no = random.randint(10000000, 99999999)
-    party_code=branch_no+product_code+str(year)+str(random_no)
-    with open("party_code.txt","r+") as file:
-        content=file.read()
-        if product_code not in content:
-            return int(party_code)
-            file.write(party_code)
-        else:
-            
-            party_code(type_of_insurance,year)
+    code = BRANCH_NO + product_code + str(year) + str(random_no)
+
+    # Check for duplicates in file and regenerate if needed
+    try:
+        with open("party_code.txt", "r") as file:
+            existing = file.read().splitlines()
+    except FileNotFoundError:
+        existing = []
+
+    if code in existing:
+        return generate_party_code(type_of_insurance, year)  
+
+    with open("party_code.txt", "a") as file:  
+        file.write(code + "\n")
+
+    return int(code)
+
+
+# ── HELPERS ────────────────────────────────────────────────────────────────────
+def name_from_database(party_code):
+    query = "SELECT Name FROM Customer_Details WHERE party_code = %s"
+    cursor.execute(query, (party_code,))
+    result = cursor.fetchone()
+    return result[0] if result else None
+
 
 def password_checking():
-    password="Enter your password" #Enter your password
-    pwd=input("Enter the password:")
-    if pwd==password:
-       underwriter()
+    pwd = input("Enter the password: ")
+    pwd_hash = hashlib.sha256(pwd.encode()).hexdigest()
+    if pwd_hash == UNDERWRITER_PASSWORD_HASH:
+        underwriter()
     else:
-        print("Access Denied")
-
-def name_from_database(party_code):
-    tuple=(party_code,)
-    query = "SELECT Name FROM Customer_Details WHERE party_code = %s"
-    cursor.execute(query,tuple)
-    result = cursor.fetchone()
-    if result:
-        name=result[0]
-        return name
-    else:
-         return None
+        print("Access Denied.")
 
 
-def customer():
-    party_code=input("Enter your party code:")
-    Name=name_from_database(party_code)
-    if Name == None:
-        print("Party Code doesn't exist")
-    else:
-        print("Welcome",Name)
-        print("""
-            What would you what to do?
-            1.View your details
-            2.Request for change of your details""")
-        choice=int(input("Enter your choice:"))
-        if choice==1:
-            cursor.execute("SELECT * FROM Customer_Details WHERE party_code ="+party_code)
-            result=cursor.fetchall()
-            for detail in result:
-                print("Party_Code:",detail[0])
-                print("Name:",detail[1])
-                print("Phone no.:",detail[2])
-                print("Address:",detail[3])
-                print("Type of Insurance:",detail[4])
-                print("Email:",detail[5])
-                print("Pincode:",detail[6])
-                print("Starting date of insurance:",detail[7])
-                print("Ending date of insurance:",detail[8])
-                
-            
-            
-        elif choice==2:
-            print("""Details and Deatails' Number
-                  1.Name
-                  2.Phone no.
-                  3.Address
-                  4.Type of Insurance
-                  5.Email
-                  6.Pincode
-                  7.Starting date of insurance
-                  8.Ending date of insurance""")
-                  
-            while True:
-                with open("Requests.csv","a") as file:
-                    detail=input("Enter the detail number:")
-                    value=input("Enter the new value:")
-                    csvwriter=csv.writer(file)
-                    list=[party_code,detailno,value]
-                    csvwriter.writerow(list)
-                    ch=input("Do you want request to change another details(y/n):")
-                    if ch.lower()=='n':
-                        print("Your request has been sucessfully submitted")  
-                        break
+# ── DATA COLLECTION ────────────────────────────────────────────────────────────
 def data_from_user():
+    """
+    Fixes:
+    - Date variable mixup (yr/mn/dt vs year/month/date) corrected
+    - start_date now correctly uses start date variables
+    """
     while True:
-        Name=input("Enter your name (max.25 characters):")
-        if len(Name)<26:
+        name = input("Enter your name (max 25 characters): ")
+        if len(name) <= 25:
             break
-        print("Name should have maximum 25 characters")
-        
-    while True:
-        phno=input("Enter your phone number:")
-        if len(phno)==10 and phno.isdigit():
-            break
-        print("A phone no. should contains 10 digits")
-        
-    while True:
-        address=input("Enter your address(City)(max.50 characters):")
-        if len(address) <=50:
-            break
-        print("Address should have maximum 25 characters")
-        
+        print("Name should have maximum 25 characters.")
 
     while True:
-        Type_of_insurance=input("Enter the type of insurance:")
-        if Type_of_insurance in ["TW",'PC','CV','NP','TU','UK','SH','MI','BI','PU','FS']:
+        phno = input("Enter your phone number: ")
+        if len(phno) == 10 and phno.isdigit():
             break
-        print("Enter the correct type of insurance")
-        
-
-    email=input("Enter the your email:")
+        print("Phone number should contain exactly 10 digits.")
 
     while True:
-        pincode=int(input("Enter the pincode:"))
-        if pincode >100000 and pincode<1000000:
+        address = input("Enter your city/address (max 50 characters): ")
+        if len(address) <= 50:
             break
-        print("Enter correct pincode")
-    
-    while True:
-        date_start=input("Enter the starting date of insurance formatted as YYYY-MM-DD:").split('-')
-        yr,mn,dt=date_start
-        date_end=input("Enter the ending date of insurance formatted as YYYY-MM-DD:").split('-')
-        year,month,date=date_end
-        start_date=datetime.date(int(yr),int(month),int(date))
-        end_date=datetime.date(int(year),int(month),int(date))
-        yr=int(yr)//100
-        pc=party_code(Type_of_insurance,yr)
-        return pc,Name,phno,address,Type_of_insurance,email,pincode,start_date,end_date
-        
-        
-def add(data):
-    query = "INSERT INTO Customer_Details VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-    cursor.execute(query,data)
+        print("Address should have maximum 50 characters.")
 
-def upadating_the_policy():
-    with open("Requests.csv","r+") as file:
-        csvreader=csv.reader(file)
-        for row in csvreader:
-            if len(row)==0:
+    while True:
+        type_of_insurance = input(f"Enter type of insurance {list(INSURANCE_TYPES.keys())}: ").upper()
+        if type_of_insurance in INSURANCE_TYPES:
+            break
+        print("Invalid insurance type. Please try again.")
+
+    email = input("Enter your email: ")
+
+    while True:
+        try:
+            pincode = int(input("Enter the pincode: "))
+            if 100000 <= pincode <= 999999:
+                break
+        except ValueError:
+            pass
+        print("Enter a valid 6-digit pincode.")
+
+    while True:
+        try:
+            start_str = input("Enter the policy start date (YYYY-MM-DD): ").split('-')
+            end_str = input("Enter the policy end date (YYYY-MM-DD): ").split('-')
+
+            # FIX: use start_str for start_date, end_str for end_date (was mixed up before)
+            s_yr, s_mn, s_dt = int(start_str[0]), int(start_str[1]), int(start_str[2])
+            e_yr, e_mn, e_dt = int(end_str[0]), int(end_str[1]), int(end_str[2])
+
+            start_date = datetime.date(s_yr, s_mn, s_dt)
+            end_date = datetime.date(e_yr, e_mn, e_dt)
+
+            if end_date <= start_date:
+                print("End date must be after start date.")
                 continue
-            pc,no,value=row
-            tuple=(value,pc)
-            if no==1:
-                query = 'UPDATE Customer_Details SET Name=%s WHERE party_code=%s'
-            elif no==2:
-                query = 'UPDATE Customer_Details SET Phone_no=%s WHERE party_code=%s'
-            elif no==3:
-                query = 'UPDATE Customer_Details SET Address=%s WHERE party_code=%s'
-            elif no==4:
-                query = 'UPDATE Customer_Details SET Type_of_Insurance=%s WHERE party_code=%s'
-            elif no==5:
-                query = 'UPDATE Customer_Details SET Email=%s WHERE party_code=%s'
-            elif no==6:
-                query = 'UPDATE Customer_Details SET Pincode=%s WHERE party_code=%s'
-            elif no==7:
-                query = 'UPDATE Customer_Details SET Policy_Start_Date=%s WHERE party_code=%s'
-            elif no==8:
-                query = 'UPDATE Customer_Details SET Policy_End_Date=%s WHERE party_code=%s'
-            else:
+            break
+        except (ValueError, IndexError):
+            print("Invalid date format. Use YYYY-MM-DD.")
+
+    century_prefix = s_yr // 100
+    pc = generate_party_code(type_of_insurance, century_prefix)
+    return pc, name, phno, address, type_of_insurance, email, pincode, start_date, end_date
+
+
+# ── CUSTOMER MODULE ────────────────────────────────────────────────────────────
+def customer():
+    """
+    Fixes:
+    - SQL injection in view details fixed (parameterised query)
+    - 'detailno' NameError fixed — now correctly uses 'detail' variable
+    """
+    party_code = input("Enter your party code: ")
+    name = name_from_database(party_code)
+
+    if name is None:
+        print("Party Code doesn't exist.")
+        return
+
+    print(f"Welcome, {name}!")
+    print("""
+    What would you like to do?
+    1. View your details
+    2. Request a change to your details""")
+
+    choice = input("Enter your choice: ").strip()
+
+    if choice == "1":
+        # FIX: parameterised query instead of string concatenation
+        cursor.execute("SELECT * FROM Customer_Details WHERE party_code = %s", (party_code,))
+        results = cursor.fetchall()
+        for row in results:
+            for label, value in zip(DB_COLUMNS, row):
+                print(f"{label}: {value}")
+
+    elif choice == "2":
+        print("""
+    Detail Number — Field
+    1  — Name
+    2  — Phone No.
+    3  — Address
+    4  — Type of Insurance
+    5  — Email
+    6  — Pincode
+    7  — Policy Start Date
+    8  — Policy End Date""")
+
+        with open("Requests.csv", "a", newline="") as file:
+            csvwriter = csv.writer(file)
+            while True:
+                detail = input("Enter the detail number (1-8): ").strip()  # FIX: was 'detailno' (undefined)
+                if detail not in [str(i) for i in range(1, 9)]:
+                    print("Invalid detail number.")
+                    continue
+                value = input("Enter the new value: ")
+                csvwriter.writerow([party_code, detail, value])
+                ch = input("Request another change? (y/n): ")
+                if ch.lower() == 'n':
+                    print("Your request has been successfully submitted.")
+                    break
+    else:
+        print("Invalid choice.")
+
+
+# ── UNDERWRITER MODULE ─────────────────────────────────────────────────────────
+def add_policy(data):
+    query = "INSERT INTO Customer_Details VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+    cursor.execute(query, data)
+    connection.commit()  # FIX: commit added
+
+
+def updating_the_policy():
+    """
+    Fixes:
+    - String vs int comparison fixed (no == "1" not no == 1)
+    - commit() added
+    """
+    field_map = {
+        "1": "Name",
+        "2": "Phone_no",
+        "3": "Address",
+        "4": "Type_of_Insurance",
+        "5": "Email",
+        "6": "Pincode",
+        "7": "Policy_Start_Date",
+        "8": "Policy_End_Date",
+    }
+
+    with open("Requests.csv", "r+", newline="") as file:
+        csvreader = csv.reader(file)
+        rows = list(csvreader)
+        for row in rows:
+            if len(row) == 0:
                 continue
-            cursor.execute(query,tuple)
+            pc, no, value = row
+            if no not in field_map:  # FIX: comparing strings to strings
+                print(f"Unknown field number '{no}', skipping.")
+                continue
+            column = field_map[no]
+            query = f"UPDATE Customer_Details SET {column} = %s WHERE party_code = %s"
+            cursor.execute(query, (value, pc))
+        connection.commit()  # FIX: commit added
+        file.seek(0)
         file.truncate()
+    print("Requests processed and cleared.")
+
 
 def canceling_a_policy():
-    party_code = int(input("Enter the party_code:")) 
-    query = f'''SELECT * FROM Customer_Details
-        WHERE party_code = {party_code};'''
-    cursor.execute(query)
+    """Fix: parameterised queries instead of f-strings; commit() added."""
+    party_code = input("Enter the party code: ").strip()
+    cursor.execute("SELECT * FROM Customer_Details WHERE party_code = %s", (party_code,))
     result = cursor.fetchone()
     if result:
-        query = f'''DELETE FROM Customer_Details
-            WHERE party_code = {party_code};'''
-        cursor.execute(query)
-        print(f"Policy with has been canceled sucessfully...")
+        cursor.execute("DELETE FROM Customer_Details WHERE party_code = %s", (party_code,))
+        connection.commit()  # FIX: commit added
+        print(f"Policy {party_code} has been cancelled successfully.")
     else:
-        print(f"No policy found with party_code {party_code}.")
-        
+        print(f"No policy found with party code {party_code}.")
+
+
 def renew_a_policy():
-    party_code=int(input("Enter the party code:"))
-    query =f'''UPDATE Customer_Details SET Policy_Start_Date = DATE_ADD(Policy_Start_date, INTERVAL 1 YEAR),
-    Policy_End_Date = DATE_ADD(Policy_End_date, INTERVAL 1 YEAR)WHERE party_code={party_code};'''
-    cursor.execute(query)
+    """Fix: parameterised query; commit() added."""
+    party_code = input("Enter the party code: ").strip()
+    query = """
+        UPDATE Customer_Details
+        SET Policy_Start_Date = DATE_ADD(Policy_Start_Date, INTERVAL 1 YEAR),
+            Policy_End_Date   = DATE_ADD(Policy_End_Date,   INTERVAL 1 YEAR)
+        WHERE party_code = %s
+    """
+    cursor.execute(query, (party_code,))  # FIX: parameterised
+    connection.commit()  # FIX: commit added
+    print(f"Policy {party_code} renewed successfully.")
+
 
 def display_policies():
-    
-    query=cursor.execute("SELECT * FROM Customer_Details")
-    result=cursor.fetchall()
-    list=["Party_Code","Name:","Phone no.:","City:",
-          "Type of Insurance:","Address:","Pincode:","Starting date of insurance:","Ending date of insurance:"]
-    for tuple in result:
-        for i in range(len(tuple)):
-            print(list[i],tuple[i])
-            
-def view_request():
-    with open("Requests.csv") as file:
-        csvreader=csv.reader(file)
-        for row in csvreader:
-            if len(row)==0:
-                continue
-            print(row)
-            
+    """
+    Fixes:
+    - Label list order corrected to match DB column order
+    - Renamed 'list' variable to 'labels' (shadows built-in otherwise)
+    """
+    cursor.execute("SELECT * FROM Customer_Details")
+    results = cursor.fetchall()
+    if not results:
+        print("No policies found.")
+        return
+    for row in results:
+        print("-" * 60)
+        for label, value in zip(DB_COLUMNS, row):  # FIX: use shared DB_COLUMNS constant
+            print(f"  {label}: {value}")
+    print("-" * 60)
+
+
+def view_requests():
+    try:
+        with open("Requests.csv") as file:
+            csvreader = csv.reader(file)
+            rows = [row for row in csvreader if row]
+            if not rows:
+                print("No pending requests.")
+            for row in rows:
+                print(row)
+    except FileNotFoundError:
+        print("No requests file found.")
+
+
+# ── UNDERWRITER MENU ───────────────────────────────────────────────────────────
 def underwriter():
-    print('-'*90)
+    print('-' * 60)
     print("""
-            What would you like to do?
-            1.Add a new policy
-            2.Update the policy
-            3.Cancel a policy
-            4.Renew a policy
-            5.Display policies
-            6.View request changes from customers
-            7.Exit""")
+    What would you like to do?
+    1. Add a new policy
+    2. Process update requests
+    3. Cancel a policy
+    4. Renew a policy
+    5. Display all policies
+    6. View change requests from customers
+    7. Exit""")
+
+    valid_choices = {'1', '2', '3', '4', '5', '6', '7'}  # FIX: proper set, not string membership
     while True:
-        choice=int(input("Enter the your choose:"))
-        if str(choice) not in '12345678':
-            print("Enter a valid choose")
-        elif choice==1:
-            data=data_from_user()
-            add(data)
-            print("Policy added successfully....")
-        elif choice==2:
-            upadating_the_policy()
-            print("Policy upadated successfully...")
-        elif choice==3:
+        choice = input("Enter your choice: ").strip()
+        if choice not in valid_choices:
+            print("Enter a valid choice (1–7).")
+        elif choice == '1':
+            data = data_from_user()
+            if data:
+                add_policy(data)
+                print("Policy added successfully.")
+        elif choice == '2':
+            updating_the_policy()
+        elif choice == '3':
             canceling_a_policy()
-        elif choice==4:
+        elif choice == '4':
             renew_a_policy()
-            print("Policy renewed successfully...")
-        elif choice==5:
+        elif choice == '5':
             display_policies()
-        elif choice==6:
-             view_request()   
-        else:
-            print("Task Completed")
-            print('-'*90)
+        elif choice == '6':
+            view_requests()
+        elif choice == '7':
+            print("Session ended.")
+            print('-' * 60)
             break
 
-print(' '*30,"Welcome",' '*30)
-print("Choose an option")
+
+# ── ENTRY POINT ────────────────────────────────────────────────────────────────
+print(" " * 20, "Welcome to the Insurance Management System")
 print("""
-1.Customer
-2.Underwriter""")
+1. Customer
+2. Underwriter""")
+
 while True:
-    choice=input("Enter the your choice:")
-    if choice not in "12":
-        continue
-    if choice =="1":
+    choice = input("Enter your choice: ").strip()
+    if choice == '1':
         customer()
         break
-    elif choice=="2":
+    elif choice == '2':
         password_checking()
         break
-
-
-
-
- 
+    else:
+        print("Please enter 1 or 2.")
