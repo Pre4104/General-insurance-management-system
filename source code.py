@@ -78,11 +78,6 @@ def password_checking():
 
 # ── DATA COLLECTION ────────────────────────────────────────────────────────────
 def data_from_user():
-    """
-    Fixes:
-    - Date variable mixup (yr/mn/dt vs year/month/date) corrected
-    - start_date now correctly uses start date variables
-    """
     while True:
         name = input("Enter your name (max 25 characters): ")
         if len(name) <= 25:
@@ -144,11 +139,6 @@ def data_from_user():
 
 # ── CUSTOMER MODULE ────────────────────────────────────────────────────────────
 def customer():
-    """
-    Fixes:
-    - SQL injection in view details fixed (parameterised query)
-    - 'detailno' NameError fixed — now correctly uses 'detail' variable
-    """
     party_code = input("Enter your party code: ")
     name = name_from_database(party_code)
 
@@ -165,7 +155,6 @@ def customer():
     choice = input("Enter your choice: ").strip()
 
     if choice == "1":
-        # FIX: parameterised query instead of string concatenation
         cursor.execute("SELECT * FROM Customer_Details WHERE party_code = %s", (party_code,))
         results = cursor.fetchall()
         for row in results:
@@ -187,7 +176,7 @@ def customer():
         with open("Requests.csv", "a", newline="") as file:
             csvwriter = csv.writer(file)
             while True:
-                detail = input("Enter the detail number (1-8): ").strip()  # FIX: was 'detailno' (undefined)
+                detail = input("Enter the detail number (1-8): ").strip() 
                 if detail not in [str(i) for i in range(1, 9)]:
                     print("Invalid detail number.")
                     continue
@@ -205,15 +194,10 @@ def customer():
 def add_policy(data):
     query = "INSERT INTO Customer_Details VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
     cursor.execute(query, data)
-    connection.commit()  # FIX: commit added
+    connection.commit() 
 
 
 def updating_the_policy():
-    """
-    Fixes:
-    - String vs int comparison fixed (no == "1" not no == 1)
-    - commit() added
-    """
     field_map = {
         "1": "Name",
         "2": "Phone_no",
@@ -245,20 +229,18 @@ def updating_the_policy():
 
 
 def canceling_a_policy():
-    """Fix: parameterised queries instead of f-strings; commit() added."""
     party_code = input("Enter the party code: ").strip()
     cursor.execute("SELECT * FROM Customer_Details WHERE party_code = %s", (party_code,))
     result = cursor.fetchone()
     if result:
         cursor.execute("DELETE FROM Customer_Details WHERE party_code = %s", (party_code,))
-        connection.commit()  # FIX: commit added
+        connection.commit() 
         print(f"Policy {party_code} has been cancelled successfully.")
     else:
         print(f"No policy found with party code {party_code}.")
 
 
 def renew_a_policy():
-    """Fix: parameterised query; commit() added."""
     party_code = input("Enter the party code: ").strip()
     query = """
         UPDATE Customer_Details
@@ -266,17 +248,12 @@ def renew_a_policy():
             Policy_End_Date   = DATE_ADD(Policy_End_Date,   INTERVAL 1 YEAR)
         WHERE party_code = %s
     """
-    cursor.execute(query, (party_code,))  # FIX: parameterised
-    connection.commit()  # FIX: commit added
+    cursor.execute(query, (party_code,))  
+    connection.commit()  
     print(f"Policy {party_code} renewed successfully.")
 
 
 def display_policies():
-    """
-    Fixes:
-    - Label list order corrected to match DB column order
-    - Renamed 'list' variable to 'labels' (shadows built-in otherwise)
-    """
     cursor.execute("SELECT * FROM Customer_Details")
     results = cursor.fetchall()
     if not results:
@@ -284,7 +261,7 @@ def display_policies():
         return
     for row in results:
         print("-" * 60)
-        for label, value in zip(DB_COLUMNS, row):  # FIX: use shared DB_COLUMNS constant
+        for label, value in zip(DB_COLUMNS, row):  
             print(f"  {label}: {value}")
     print("-" * 60)
 
@@ -315,7 +292,7 @@ def underwriter():
     6. View change requests from customers
     7. Exit""")
 
-    valid_choices = {'1', '2', '3', '4', '5', '6', '7'}  # FIX: proper set, not string membership
+    valid_choices = {'1', '2', '3', '4', '5', '6', '7'}  
     while True:
         choice = input("Enter your choice: ").strip()
         if choice not in valid_choices:
